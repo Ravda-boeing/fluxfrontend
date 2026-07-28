@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flux — quick test</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  /* Minimal styling just for the sign-in step — Flux's own window.css
+     takes over once you're signed in and it mounts. */
+  body { margin: 0; height: 100vh; background: #05070f; font-family: -apple-system, "Segoe UI", sans-serif; }
+  #signin-screen {
+    height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+  #signin-box {
+    background: #10142b; border: 1px solid rgba(120,150,255,0.16); border-radius: 10px;
+    padding: 28px; width: 280px; color: #dce4ff;
+  }
+  #signin-box h2 { margin: 0 0 16px; font-size: 15px; letter-spacing: 0.05em; }
+  #signin-box input {
+    width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 8px 10px;
+    background: rgba(10,14,28,0.6); border: 1px solid rgba(120,150,255,0.16);
+    border-radius: 6px; color: #dce4ff; font-size: 13px;
+  }
+  #signin-box button {
+    width: 100%; padding: 9px; border: none; border-radius: 7px; cursor: pointer;
+    background: linear-gradient(120deg, #4f7fee, #9b7cf5); color: #f4f7ff;
+    font-weight: 600; letter-spacing: 0.04em; font-size: 12px;
+  }
+  #signin-error { color: #f2a9a9; font-size: 12px; margin-top: 10px; min-height: 16px; }
+  #flux-mount { height: 100vh; display: none; }
+</style>
+</head>
+<body>
+
+  <!--
+    This is a QUICK TEST HARNESS, not part of the real SinkOS integration.
+    It exists purely so you can sign in with your real SinkOS account and
+    talk to Flux directly in a browser, before it's wired into the actual
+    SinkOS app registry/desktop.
+
+    It signs in using the same Supabase project your other SinkOS modules
+    use, then mounts FluxApp exactly the way SinkOS eventually will —
+    FluxApp's default getAuthToken() reads window.sb.auth.getSession()
+    automatically, so no special wiring is needed here beyond setting
+    window.sb before calling flux.mount().
+  -->
+
+  <div id="signin-screen">
+    <div id="signin-box">
+      <h2>Sign in to talk to Flux</h2>
+      <input type="email" id="email" placeholder="Email" autocomplete="username" />
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
+      <button id="signin-btn">Sign in</button>
+      <div id="signin-error"></div>
+    </div>
+  </div>
+
+  <div id="flux-mount"></div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    import { FluxApp } from "./flux.js";
+
+    // Same Supabase project every other SinkOS module already talks to.
+    const SUPABASE_URL = "https://okknkixdbjsnqrwlfgzn.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ra25raXhkYmpzbnFyd2xmZ3puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NzgwNzQsImV4cCI6MjA5ODE1NDA3NH0.L2QDUnez8KjIM8yg9cB9cs-tTq6nedk3CCpuJBjWBEg";
+
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.sb = sb; // FluxApp's default getAuthToken() reads this
+
+    const signinScreen = document.getElementById("signin-screen");
+    const fluxMount = document.getElementById("flux-mount");
+    const errorEl = document.getElementById("signin-error");
+
+    async function mountFlux() {
+      signinScreen.style.display = "none";
+      fluxMount.style.display = "block";
+      const flux = new FluxApp({
+        mountEl: fluxMount,
+        // No apiBaseUrl here on purpose — FluxApp picks localhost:5001 when
+        // you're testing locally, or the live Render URL automatically once
+        // this file is opened from the deployed GitHub Pages site.
+      });
+      await flux.mount();
+      window.flux = flux; // handy for poking at from devtools
+    }
+
+    // Already signed in from a previous visit (session persists via
+    // localStorage)? Skip the form entirely.
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      mountFlux();
+    }
+
+    document.getElementById("signin-btn").addEventListener("click", async () => {
+      errorEl.textContent = "";
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        errorEl.textContent = error.message;
+        return;
+      }
+      mountFlux();
+    });
+  </script>
+</body>
+</html>
