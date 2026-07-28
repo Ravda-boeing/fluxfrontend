@@ -538,14 +538,71 @@ export class FluxApp {
 
 // ---- Standalone preview bootstrap ---------------------------------
 // If index.html is opened directly (not embedded inside SinkOS), self-mount
-// into #flux-standalone-mount so the file is never blank on its own.
+// into #flux-standalone-mount. Since every backend request now needs a real
+// Supabase session, this also handles signing in first — same project every
+// other SinkOS module uses. Inside SinkOS, none of this runs (SinkOS embeds
+// FluxApp itself via mount() with its own getAuthToken), so this only
+// matters when someone opens this file's URL directly.
 if (typeof document !== "undefined") {
   const standaloneMount = document.getElementById("flux-standalone-mount");
   if (standaloneMount) {
-    const app = new FluxApp({ mountEl: standaloneMount });
-    app.mount().catch((err) => {
-      standaloneMount.textContent = `Flux failed to mount: ${err.message}`;
-    });
-    window.flux = app; // handy for poking at from devtools
+    const SUPABASE_URL = "https://okknkixdbjsnqrwlfgzn.supabase.co";
+    const SUPABASE_ANON_KEY =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ra25raXhkYmpzbnFyd2xmZ3puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1NzgwNzQsImV4cCI6MjA5ODE1NDA3NH0.L2QDUnez8KjIM8yg9cB9cs-tTq6nedk3CCpuJBjWBEg";
+
+    const mountFluxStandalone = async () => {
+      const app = new FluxApp({ mountEl: standaloneMount });
+      await app.mount();
+      window.flux = app; // handy for poking at from devtools
+    };
+
+    const renderSigninForm = (client) => {
+      standaloneMount.innerHTML = `
+        <div style="height:100%;display:flex;align-items:center;justify-content:center;background:#05070f;font-family:-apple-system,'Segoe UI',sans-serif;">
+          <div style="background:#10142b;border:1px solid rgba(120,150,255,0.16);border-radius:10px;padding:28px;width:280px;color:#dce4ff;">
+            <h2 style="margin:0 0 16px;font-size:15px;letter-spacing:0.05em;">Sign in to talk to Flux</h2>
+            <input id="flux-standalone-email" type="email" placeholder="Email" autocomplete="username"
+              style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:8px 10px;background:rgba(10,14,28,0.6);border:1px solid rgba(120,150,255,0.16);border-radius:6px;color:#dce4ff;font-size:13px;" />
+            <input id="flux-standalone-password" type="password" placeholder="Password" autocomplete="current-password"
+              style="width:100%;box-sizing:border-box;margin-bottom:10px;padding:8px 10px;background:rgba(10,14,28,0.6);border:1px solid rgba(120,150,255,0.16);border-radius:6px;color:#dce4ff;font-size:13px;" />
+            <button id="flux-standalone-signin-btn"
+              style="width:100%;padding:9px;border:none;border-radius:7px;cursor:pointer;background:linear-gradient(120deg,#4f7fee,#9b7cf5);color:#f4f7ff;font-weight:600;letter-spacing:0.04em;font-size:12px;">Sign in</button>
+            <div id="flux-standalone-signin-error" style="color:#f2a9a9;font-size:12px;margin-top:10px;min-height:16px;"></div>
+          </div>
+        </div>
+      `;
+      const errorEl = document.getElementById("flux-standalone-signin-error");
+      document.getElementById("flux-standalone-signin-btn").addEventListener("click", async () => {
+        errorEl.textContent = "";
+        const email = document.getElementById("flux-standalone-email").value.trim();
+        const password = document.getElementById("flux-standalone-password").value;
+        const { error } = await client.auth.signInWithPassword({ email, password });
+        if (error) {
+          errorEl.textContent = error.message;
+          return;
+        }
+        standaloneMount.innerHTML = "";
+        mountFluxStandalone().catch((err) => {
+          standaloneMount.textContent = `Flux failed to mount: ${err.message}`;
+        });
+      });
+    };
+
+    (async () => {
+      try {
+        const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+        const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        window.sb = client; // FluxApp's default getAuthToken() reads this
+
+        const { data: { session } } = await client.auth.getSession();
+        if (session) {
+          await mountFluxStandalone();
+        } else {
+          renderSigninForm(client);
+        }
+      } catch (err) {
+        standaloneMount.textContent = `Flux failed to mount: ${err.message}`;
+      }
+    })();
   }
 }
