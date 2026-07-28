@@ -36,7 +36,7 @@ export class FluxApp {
    */
   constructor(opts = {}) {
     this.mountEl = opts.mountEl;
-    this.apiBaseUrl = opts.apiBaseUrl || "http://localhost:5001";
+    this.apiBaseUrl = opts.apiBaseUrl || FluxApp._defaultApiBaseUrl();
     this.htmlUrl = opts.htmlUrl || new URL("./index.html", import.meta.url).href;
     this.conversationId = opts.conversationId || null;
     this.getAuthToken =
@@ -54,6 +54,23 @@ export class FluxApp {
 
     // DOM refs, set after mount()
     this.el = {};
+  }
+
+  /**
+   * Picks a sensible default backend URL: localhost while developing (Live
+   * Server, file://, etc.), the live Render URL everywhere else. This is
+   * what avoids the browser's "Access other apps and services on this
+   * device" prompt on the deployed site — that prompt fires whenever a
+   * public HTTPS page tries to reach localhost/a private address, which
+   * only makes sense while *you* are the one running server.py locally.
+   */
+  static _defaultApiBaseUrl() {
+    if (typeof window === "undefined") return "http://localhost:5001";
+    const host = window.location.hostname;
+    const isLocal = host === "localhost" || host === "127.0.0.1" || host === "";
+    return isLocal
+      ? "http://localhost:5001"
+      : "https://fluxfrontend.onrender.com"; // <-- update if you rename the Render service
   }
 
   async mount() {
