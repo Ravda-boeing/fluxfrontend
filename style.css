@@ -1,0 +1,566 @@
+/*
+  Flux — SinkOS AI Assistant
+  Design tokens:
+    --flux-bg           #0A0E1C  deep navy canvas
+    --flux-surface      #10142B  panel surface (titlebar / input bar)
+    --flux-border       rgba(120,150,255,0.16)  hairline borders
+    --flux-text         #DCE4FF  primary text
+    --flux-text-dim     #6E7BA6  secondary text
+    --flux-blue         #4F7FEE  primary accent (from reference)
+    --flux-blue-light   #8FB4FF  lighter blue for gradients/highlights
+    --flux-purple       #9B7CF5  light purple hint, used sparingly
+  Type: ui-monospace throughout the chrome (titlebar, tags, hints) for the
+  terminal/OS feel; Inter for message content, which is what's actually read.
+  Signature: a faint animated grid (nod to the reference image) plus a
+  slow-drifting blue field with a single small purple bloom — motion +
+  a mostly-blue palette with one hint of violet, rather than a static logo.
+*/
+
+.flux-standalone-mount {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #05070f;
+}
+
+.flux-standalone-mount .flux-window {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+}
+
+/* ---------- Flux window ---------- */
+
+.flux-window {
+  --flux-bg: #0a0e1c;
+  --flux-surface: #10142b;
+  --flux-border: rgba(120, 150, 255, 0.16);
+  --flux-text: #dce4ff;
+  --flux-text-dim: #6e7ba6;
+  --flux-blue: #4f7fee;
+  --flux-blue-light: #8fb4ff;
+  --flux-purple: #9b7cf5;
+  --flux-user-bg: rgba(79, 127, 238, 0.16);
+
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  background: var(--flux-bg);
+  color: var(--flux-text);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--flux-border);
+  position: relative;
+  isolation: isolate;
+}
+
+/* ---------- Sidebar (conversation history) ---------- */
+
+.flux-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 10px;
+  background: rgba(8, 11, 24, 0.55);
+  border-right: 1px solid var(--flux-border);
+  backdrop-filter: blur(10px);
+  transition: margin-left 0.2s ease, opacity 0.2s ease;
+  overflow-y: auto;
+}
+
+.flux-window.flux-sidebar-collapsed .flux-sidebar {
+  margin-left: -220px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.flux-new-chat-btn {
+  flex-shrink: 0;
+  background: rgba(79, 127, 238, 0.14);
+  border: 1px solid rgba(79, 127, 238, 0.35);
+  color: var(--flux-blue-light);
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  padding: 9px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.flux-new-chat-btn:hover {
+  background: rgba(79, 127, 238, 0.24);
+}
+
+.flux-conversation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow-y: auto;
+}
+
+.flux-conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--flux-text-dim);
+  font-size: 12.5px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.flux-conversation-item:hover {
+  background: rgba(120, 150, 255, 0.08);
+  color: var(--flux-text);
+}
+
+.flux-conversation-item.flux-active {
+  background: rgba(79, 127, 238, 0.16);
+  color: var(--flux-text);
+}
+
+.flux-conversation-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flux-conversation-delete {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--flux-text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.flux-conversation-item:hover .flux-conversation-delete {
+  opacity: 1;
+}
+
+.flux-conversation-delete:hover {
+  color: #f2a9a9;
+  background: rgba(242, 169, 169, 0.12);
+}
+
+/* ---------- Main content column ---------- */
+
+.flux-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Faint graph-paper grid, echoing the reference image's backdrop */
+.flux-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(rgba(120, 150, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 150, 255, 0.07) 1px, transparent 1px);
+  background-size: 34px 34px;
+  animation: flux-grid-drift 40s linear infinite;
+}
+
+@keyframes flux-grid-drift {
+  0%   { background-position: 0 0, 0 0; }
+  100% { background-position: 0 -340px, -340px 0; }
+}
+
+/* The signature field: mostly blue, one small purple bloom — flow made
+   literal without being a static mark. Sits behind the grid's glow, above
+   the plain background. */
+.flux-aurora {
+  position: absolute;
+  inset: -20%;
+  z-index: -1;
+  filter: blur(80px) saturate(130%);
+  opacity: 0.4;
+  background:
+    radial-gradient(30% 30% at 25% 25%, var(--flux-blue) 0%, transparent 70%),
+    radial-gradient(26% 26% at 78% 65%, var(--flux-blue-light) 0%, transparent 70%),
+    radial-gradient(18% 18% at 70% 20%, var(--flux-purple) 0%, transparent 70%);
+  animation: flux-aurora-drift 24s ease-in-out infinite;
+}
+
+@keyframes flux-aurora-drift {
+  0%   { transform: translate(0%, 0%) scale(1); }
+  50%  { transform: translate(-3%, 3%) scale(1.06); }
+  100% { transform: translate(0%, 0%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flux-grid, .flux-aurora { animation: none; }
+}
+
+/* ---------- Titlebar ---------- */
+
+.flux-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: rgba(16, 20, 43, 0.75);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--flux-border);
+  font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  user-select: none;
+}
+
+.flux-titlebar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.flux-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  background: linear-gradient(120deg, var(--flux-blue-light), var(--flux-blue));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.flux-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--flux-text-dim);
+  text-transform: uppercase;
+}
+
+.flux-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--flux-blue-light);
+  box-shadow: 0 0 6px 1px var(--flux-blue-light);
+  animation: flux-status-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes flux-status-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.flux-tag {
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--flux-text-dim);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.flux-titlebar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.flux-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--flux-text-dim);
+  font-size: 13px;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.flux-icon-btn:hover {
+  background: rgba(120, 150, 255, 0.12);
+  color: var(--flux-text);
+}
+
+.flux-icon-btn:focus-visible,
+.flux-send-btn:focus-visible,
+.flux-input:focus-visible {
+  outline: 2px solid var(--flux-blue-light);
+  outline-offset: 2px;
+}
+
+/* ---------- Body / messages ---------- */
+
+.flux-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.flux-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.flux-messages::-webkit-scrollbar {
+  width: 8px;
+}
+.flux-messages::-webkit-scrollbar-thumb {
+  background: var(--flux-border);
+  border-radius: 4px;
+}
+
+.flux-msg {
+  max-width: 82%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.flux-msg-assistant {
+  align-self: flex-start;
+}
+
+.flux-msg-user {
+  align-self: flex-end;
+}
+
+.flux-msg-role {
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  color: var(--flux-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0 2px;
+}
+
+.flux-msg-content {
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 10px 13px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.flux-msg-assistant .flux-msg-content {
+  background: rgba(16, 20, 43, 0.7);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--flux-border);
+  border-top-left-radius: 3px;
+}
+
+.flux-msg-user .flux-msg-content {
+  background: var(--flux-user-bg);
+  border: 1px solid rgba(79, 127, 238, 0.3);
+  border-top-right-radius: 3px;
+}
+
+.flux-msg-content.flux-error {
+  border-color: #7f3b3b;
+  color: #f2a9a9;
+}
+
+.flux-msg-content.flux-thinking {
+  color: var(--flux-text-dim);
+  font-style: italic;
+}
+
+/* ---------- Input bar ---------- */
+
+.flux-input-bar {
+  padding: 14px 18px 16px;
+  border-top: 1px solid var(--flux-border);
+  background: rgba(16, 20, 43, 0.75);
+  backdrop-filter: blur(10px);
+}
+
+.flux-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: rgba(10, 14, 28, 0.6);
+  border: 1px solid var(--flux-border);
+  border-radius: 10px;
+  padding: 8px 8px 8px 14px;
+}
+
+.flux-input {
+  flex: 1;
+  resize: none;
+  background: transparent;
+  border: none;
+  color: var(--flux-text);
+  padding: 6px 0;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.4;
+  max-height: 140px;
+}
+
+.flux-input:focus-visible {
+  outline: none;
+}
+
+.flux-input::placeholder {
+  color: var(--flux-text-dim);
+}
+
+.flux-send-btn {
+  flex-shrink: 0;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(120deg, var(--flux-blue), var(--flux-purple));
+  background-size: 200% 200%;
+  color: #f4f7ff;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 9px 16px;
+  border-radius: 7px;
+  transition: background-position 0.4s ease, opacity 0.15s ease;
+}
+
+.flux-send-btn:hover {
+  background-position: 100% 50%;
+}
+
+.flux-send-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.flux-mic-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--flux-border);
+  background: rgba(10, 14, 28, 0.6);
+  color: var(--flux-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none; /* stop touchscreens from scrolling while held */
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.2s ease;
+}
+
+.flux-mic-btn:hover {
+  color: var(--flux-text);
+  border-color: var(--flux-blue-light);
+}
+
+.flux-mic-btn[hidden] {
+  display: none;
+}
+
+.flux-mic-btn.flux-mic-listening {
+  color: #f4f7ff;
+  border-color: transparent;
+  background: linear-gradient(120deg, var(--flux-blue), var(--flux-purple));
+  animation: flux-mic-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes flux-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(155, 124, 245, 0.4); }
+  50%      { box-shadow: 0 0 0 7px rgba(155, 124, 245, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flux-mic-btn.flux-mic-listening { animation: none; }
+}
+
+.flux-input-hint {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--flux-text-dim);
+  letter-spacing: 0.04em;
+  margin-top: 9px;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+}
+
+/* ---------- Settings panel ---------- */
+
+.flux-settings-panel {
+  position: absolute;
+  top: 54px;
+  right: 14px;
+  width: 240px;
+  background: rgba(16, 20, 43, 0.95);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--flux-border);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.flux-settings-panel h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  letter-spacing: 0.04em;
+}
+
+.flux-settings-panel label {
+  display: block;
+  font-size: 11px;
+  color: var(--flux-text-dim);
+  margin-bottom: 4px;
+}
+
+.flux-settings-panel input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(10, 14, 28, 0.6);
+  border: 1px solid var(--flux-border);
+  color: var(--flux-text);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  margin-bottom: 10px;
+}
+
+.flux-settings-panel button {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--flux-border);
+  background: rgba(10, 14, 28, 0.6);
+  color: var(--flux-text);
+  cursor: pointer;
+  margin-right: 6px;
+}
+
+.flux-settings-panel button:hover {
+  border-color: var(--flux-blue-light);
+}
